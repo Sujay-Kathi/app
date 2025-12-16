@@ -1,6 +1,9 @@
 {
-    "buildCommand": "cd tidy-room/apps/web && npm run build",
-    "outputDirectory": "tidy-room/apps/web/.next",
-    "installCommand": "cd tidy-room/apps/web && npm install",
-    "framework": "nextjs"
+    "version": 2,
+    "builds": [
+        {
+            "src": "tidy-room/apps/web/package.json",
+            "use": "@vercel/next"
+        }
+    ]
 }
