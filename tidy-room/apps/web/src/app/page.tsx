@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
@@ -15,18 +16,39 @@ import {
   Zap
 } from 'lucide-react';
 
+// Generate random positions only on client side to avoid hydration mismatch
+function useRandomPositions(count: number) {
+  const [positions, setPositions] = useState<Array<{ left: number; top: number }>>([]);
+
+  useEffect(() => {
+    setPositions(
+      Array.from({ length: count }, () => ({
+        left: Math.random() * 100,
+        top: Math.random() * 100,
+      }))
+    );
+  }, [count]);
+
+  return positions;
+}
+
 export default function LandingPage() {
+  // Generate positions on client side only
+  const bgParticlePositions = useRandomPositions(20);
+  const sparklePositions = useRandomPositions(5);
+  const ctaDecorationPositions = useRandomPositions(10);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 overflow-hidden">
       {/* Animated background elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
+        {bgParticlePositions.map((pos, i) => (
           <motion.div
             key={i}
             className="absolute w-2 h-2 bg-white/20 rounded-full"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
+              left: `${pos.left}%`,
+              top: `${pos.top}%`,
             }}
             animate={{
               y: [0, -30, 0],
@@ -34,9 +56,9 @@ export default function LandingPage() {
               scale: [1, 1.5, 1],
             }}
             transition={{
-              duration: 3 + Math.random() * 2,
+              duration: 3 + (i % 5) * 0.4,
               repeat: Infinity,
-              delay: Math.random() * 2,
+              delay: (i % 10) * 0.2,
             }}
           />
         ))}
@@ -187,13 +209,13 @@ export default function LandingPage() {
                   <div className="absolute top-4 left-1/2 -translate-x-1/2 w-16 h-16 bg-gradient-to-b from-sky-200 to-sky-300 rounded-lg border-4 border-white shadow-lg" />
 
                   {/* Sparkles when clean */}
-                  {[...Array(5)].map((_, i) => (
+                  {sparklePositions.map((pos, i) => (
                     <motion.div
                       key={i}
                       className="absolute text-yellow-400"
                       style={{
-                        left: `${20 + Math.random() * 60}%`,
-                        top: `${20 + Math.random() * 60}%`,
+                        left: `${20 + pos.left * 0.6}%`,
+                        top: `${20 + pos.top * 0.6}%`,
                       }}
                       animate={{
                         scale: [0, 1, 0],
@@ -384,16 +406,16 @@ export default function LandingPage() {
           >
             {/* Background decoration */}
             <div className="absolute inset-0 overflow-hidden">
-              {[...Array(10)].map((_, i) => (
+              {ctaDecorationPositions.map((pos, i) => (
                 <motion.div
                   key={i}
                   className="absolute text-4xl opacity-20"
                   style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
+                    left: `${pos.left}%`,
+                    top: `${pos.top}%`,
                   }}
                   animate={{ rotate: 360 }}
-                  transition={{ duration: 10 + Math.random() * 10, repeat: Infinity, ease: "linear" }}
+                  transition={{ duration: 10 + (i % 5) * 2, repeat: Infinity, ease: "linear" }}
                 >
                   {['✨', '⭐', '🏠', '🎮', '🏆'][i % 5]}
                 </motion.div>
