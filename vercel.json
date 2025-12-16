@@ -1,0 +1,6 @@
+{
+    "buildCommand": "cd tidy-room/apps/web && npm run build",
+    "outputDirectory": "tidy-room/apps/web/.next",
+    "installCommand": "cd tidy-room/apps/web && npm install",
+    "framework": "nextjs"
+}
