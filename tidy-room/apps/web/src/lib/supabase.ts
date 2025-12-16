@@ -1,9 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Use fallback values during build time if env vars are not available
+// These will be replaced with actual values at runtime
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
 
+// Only create client if we have valid credentials (not placeholder)
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Helper function to get user session

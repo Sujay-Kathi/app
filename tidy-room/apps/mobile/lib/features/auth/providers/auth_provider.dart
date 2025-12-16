@@ -95,14 +95,8 @@ class AuthProvider extends ChangeNotifier {
       );
 
       if (response.user != null) {
-        // Create profile
-        await supabase.from('tidy_profiles').insert({
-          'id': response.user!.id,
-          'email': email,
-          'display_name': displayName,
-          'role': 'parent',
-          'is_primary_parent': true,
-        });
+        // Wait a moment for the database trigger to create the profile
+        await Future.delayed(const Duration(milliseconds: 500));
 
         // Create family
         final familyResponse = await supabase.from('tidy_families').insert({
@@ -110,9 +104,10 @@ class AuthProvider extends ChangeNotifier {
           'created_by': response.user!.id,
         }).select().single();
 
-        // Update profile with family ID
+        // Update profile with family ID (profile was auto-created by trigger)
         await supabase.from('tidy_profiles').update({
           'family_id': familyResponse['id'],
+          'display_name': displayName, // Ensure display name is set
         }).eq('id', response.user!.id);
 
         return true;
