@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../providers/task_provider.dart';
 import '../../child/providers/child_provider.dart';
+import 'photo_verification_screen.dart';
 
 class TaskListScreen extends StatefulWidget {
   const TaskListScreen({super.key});
@@ -416,11 +417,14 @@ class _TaskListScreenState extends State<TaskListScreen> with SingleTickerProvid
 
     if (requiresVerification) {
       // Navigate to photo verification screen
-      // TODO: Implement photo capture flow
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('📷 Photo verification coming soon!'),
-          behavior: SnackBarBehavior.floating,
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PhotoVerificationScreen(
+            task: task,
+            childId: childId,
+            onComplete: _refresh,
+          ),
         ),
       );
       return;

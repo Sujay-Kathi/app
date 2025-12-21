@@ -32,23 +32,54 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Fetch all children from the database
-      // In a real app, you might filter by a family code or similar
-      final response = await supabase
-          .from('tidy_children')
-          .select('id, name, avatar_emoji, family_id')
-          .order('name');
-
+      // First, check if there's a cached family_id from a parent login on this device
+      final cachedFamilyId = await AuthProvider.getCachedFamilyId();
+      debugPrint('Child login: cached family_id = $cachedFamilyId');
+      
+      List<Map<String, dynamic>> allChildren = [];
+      
+      // Try RPC function first (works for unauthenticated users)
+      try {
+        final response = await supabase.rpc('get_children_for_login');
+        allChildren = List<Map<String, dynamic>>.from(response ?? []);
+      } catch (e) {
+        debugPrint('RPC failed: $e, trying direct query...');
+        // Fallback to direct query (for authenticated users)
+        try {
+          final fallbackResponse = await supabase
+              .from('tidy_children')
+              .select('id, name, avatar_emoji, family_id')
+              .order('name');
+          allChildren = List<Map<String, dynamic>>.from(fallbackResponse);
+        } catch (e2) {
+          debugPrint('Direct query also failed: $e2');
+        }
+      }
+      
+      // Filter by cached family_id if available
+      if (cachedFamilyId != null && allChildren.isNotEmpty) {
+        allChildren = allChildren
+            .where((child) => child['family_id'] == cachedFamilyId)
+            .toList();
+        debugPrint('Filtered to ${allChildren.length} children from family');
+      }
+      
       if (mounted) {
         setState(() {
-          _children = List<Map<String, dynamic>>.from(response);
+          _children = allChildren;
           _isLoading = false;
+          if (_children.isEmpty) {
+            _error = cachedFamilyId != null 
+                ? 'No children added yet. Ask a parent to add you!'
+                : 'No children found. A parent needs to log in first and add a child.';
+          }
         });
       }
     } catch (e) {
+      debugPrint('Error fetching children: $e');
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = 'Could not load children. Please try again.';
           _isLoading = false;
         });
       }
@@ -83,20 +114,43 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
     try {
       final selectedChild = _children[_selectedChildIndex];
       final childId = selectedChild['id'];
+      
+      Map<String, dynamic>? verifiedChild;
 
-      // Verify PIN against database
-      final response = await supabase
-          .from('tidy_children')
-          .select()
-          .eq('id', childId)
-          .eq('pin_code', _pin)
-          .maybeSingle();
+      // Try RPC function first (for unauthenticated users)
+      try {
+        final response = await supabase.rpc('verify_child_pin', params: {
+          'p_child_id': childId,
+          'p_pin': _pin,
+        });
+        
+        final results = List<Map<String, dynamic>>.from(response ?? []);
+        if (results.isNotEmpty) {
+          verifiedChild = results.first;
+        }
+      } catch (rpcError) {
+        debugPrint('RPC verification failed: $rpcError, trying direct query...');
+        
+        // Fallback to direct query (for authenticated users or if RPC not set up)
+        try {
+          final response = await supabase
+              .from('tidy_children')
+              .select('id, name, avatar_emoji, family_id, current_level, total_points, available_points')
+              .eq('id', childId)
+              .eq('pin_code', _pin)
+              .maybeSingle();
+          
+          verifiedChild = response;
+        } catch (queryError) {
+          debugPrint('Direct query also failed: $queryError');
+        }
+      }
 
       if (!mounted) return;
 
-      if (response != null) {
+      if (verifiedChild != null) {
         // Set child in provider
-        context.read<ChildProvider>().setChild(childId, response);
+        context.read<ChildProvider>().setChild(childId, verifiedChild);
         
         // Navigate to room
         context.go('/room');
@@ -113,6 +167,7 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
         );
       }
     } catch (e) {
+      debugPrint('Error verifying PIN: $e');
       if (mounted) {
         setState(() {
           _pin = '';

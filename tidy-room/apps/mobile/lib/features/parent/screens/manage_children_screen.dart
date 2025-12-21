@@ -32,6 +32,14 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
 
     try {
       final authProvider = context.read<AuthProvider>();
+      
+      // Ensure profile is up to date and family exists
+      final hasFamilyNow = await authProvider.refreshProfile();
+      
+      if (!hasFamilyNow) {
+        debugPrint('Family creation failed in _fetchChildren');
+      }
+      
       final profile = authProvider.profile;
       
       if (profile != null && profile['family_id'] != null) {
@@ -46,14 +54,17 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
           _isLoading = false;
         });
       } else {
+        // Still no family - this is a database/permissions issue
         setState(() {
+          _error = 'Family setup failed. This may be a permissions issue. Try: 1) Retry below, 2) Log out and log back in, or 3) Contact support.';
           _children = [];
           _isLoading = false;
         });
       }
     } catch (e) {
+      debugPrint('Error in _fetchChildren: $e');
       setState(() {
-        _error = e.toString();
+        _error = 'Error loading children: ${e.toString()}';
         _isLoading = false;
       });
     }
@@ -240,34 +251,17 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       final profile = authProvider.profile;
       
       if (profile == null || profile['family_id'] == null) {
-        throw Exception('No family found');
+        throw Exception('No family found. Please try logging out and back in.');
       }
 
-      // Create child
-      final childResponse = await supabase.from('tidy_children').insert({
+      // Create child - the database trigger 'trigger_create_child_room' 
+      // automatically creates the room and streak records
+      await supabase.from('tidy_children').insert({
         'family_id': profile['family_id'],
         'name': name,
         'age': age,
         'avatar_emoji': avatar,
         'pin_code': pin,
-      }).select().single();
-
-      // Create room for child
-      await supabase.from('tidy_rooms').insert({
-        'child_id': childResponse['id'],
-        'cleanliness_score': 50,
-        'zone_bed': 50,
-        'zone_floor': 50,
-        'zone_desk': 50,
-        'zone_closet': 50,
-        'zone_general': 50,
-      });
-
-      // Create streak for child
-      await supabase.from('tidy_streaks').insert({
-        'child_id': childResponse['id'],
-        'current_streak': 0,
-        'longest_streak': 0,
       });
 
       // Refresh list
@@ -282,6 +276,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         );
       }
     } catch (e) {
+      debugPrint('Error adding child: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -437,20 +432,22 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
     final cleanliness = room?['cleanliness_score'] ?? 50;
     final currentStreak = streak?['current_streak'] ?? 0;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return GestureDetector(
+      onTap: () => _showChildDetails(child),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
       child: Row(
         children: [
           // Avatar
@@ -557,9 +554,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                     Text('Edit'),
                   ],
                 ),
-                onTap: () {
-                  // TODO: Edit child
-                },
+                onTap: () => Future.delayed(Duration.zero, () => _showEditChildDialog(child)),
               ),
               PopupMenuItem(
                 child: const Row(
@@ -569,9 +564,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                     Text('Reset PIN'),
                   ],
                 ),
-                onTap: () {
-                  // TODO: Reset PIN
-                },
+                onTap: () => Future.delayed(Duration.zero, () => _showResetPinDialog(child)),
               ),
               PopupMenuItem(
                 child: const Row(
@@ -585,6 +578,464 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
               ),
             ],
           ),
+        ],
+      ),
+      ),
+    );
+  }
+
+  void _showEditChildDialog(Map<String, dynamic> child) {
+    final nameController = TextEditingController(text: child['name'] ?? '');
+    final ageController = TextEditingController(text: (child['age'] ?? '').toString());
+    String selectedAvatar = child['avatar_emoji'] ?? '👦';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Text(
+                      'Edit ${child['name']} ✏️',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Avatar Selection
+                const Text('Select Avatar', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: ['👦', '👧', '🧒', '👶', '🧑', '👱', '🐱', '🐶', '🦊', '🐼', '🦁', '🐰']
+                        .map((avatar) => GestureDetector(
+                              onTap: () => setModalState(() => selectedAvatar = avatar),
+                              child: Container(
+                                width: 50,
+                                height: 50,
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(
+                                  color: selectedAvatar == avatar
+                                      ? AppTheme.primary.withOpacity(0.2)
+                                      : Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: selectedAvatar == avatar
+                                      ? Border.all(color: AppTheme.primary, width: 2)
+                                      : null,
+                                ),
+                                child: Center(
+                                  child: Text(avatar, style: const TextStyle(fontSize: 26)),
+                                ),
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Name Input
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Child\'s Name',
+                    prefixIcon: const Icon(Icons.person_outline),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Age Input
+                TextField(
+                  controller: ageController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Age',
+                    prefixIcon: const Icon(Icons.cake_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Save Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (nameController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please enter a name')),
+                        );
+                        return;
+                      }
+
+                      Navigator.pop(context);
+                      
+                      try {
+                        await supabase.from('tidy_children').update({
+                          'name': nameController.text.trim(),
+                          'age': int.tryParse(ageController.text) ?? child['age'],
+                          'avatar_emoji': selectedAvatar,
+                        }).eq('id', child['id']);
+
+                        await _fetchChildren();
+                        
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('${nameController.text} updated! ✅'),
+                              backgroundColor: AppTheme.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: ${e.toString()}'),
+                              backgroundColor: AppTheme.error,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Save Changes',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showResetPinDialog(Map<String, dynamic> child) {
+    final pinController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Reset PIN for ${child['name']}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter a new 4-digit PIN for your child to use when logging in.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: pinController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              obscureText: true,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, letterSpacing: 8),
+              decoration: InputDecoration(
+                hintText: '••••',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (pinController.text.length != 4) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('PIN must be 4 digits')),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+
+              try {
+                await supabase.from('tidy_children').update({
+                  'pin_code': pinController.text,
+                }).eq('id', child['id']);
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('PIN reset for ${child['name']}! 🔐'),
+                      backgroundColor: AppTheme.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: ${e.toString()}'),
+                      backgroundColor: AppTheme.error,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            child: const Text('Reset PIN', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChildDetails(Map<String, dynamic> child) {
+    final room = child['room'];
+    final streak = child['streak'];
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    // Avatar and name
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      child: Center(
+                        child: Text(
+                          child['avatar_emoji'] ?? '👦',
+                          style: const TextStyle(fontSize: 50),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      child['name'] ?? 'Child',
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'Age ${child['age'] ?? '?'} • Level ${child['current_level'] ?? 1}',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Stats Grid
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            '⭐',
+                            'Total Points',
+                            '${child['total_points'] ?? 0}',
+                            AppTheme.accent,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            '💰',
+                            'Available',
+                            '${child['available_points'] ?? 0}',
+                            AppTheme.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            '🔥',
+                            'Current Streak',
+                            '${streak?['current_streak'] ?? 0} days',
+                            Colors.orange,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            '🏆',
+                            'Best Streak',
+                            '${streak?['longest_streak'] ?? 0} days',
+                            AppTheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Room Status
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.secondary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '🏠 Room Status',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildZoneBar('Bed', room?['zone_bed'] ?? 50),
+                          _buildZoneBar('Floor', room?['zone_floor'] ?? 50),
+                          _buildZoneBar('Desk', room?['zone_desk'] ?? 50),
+                          _buildZoneBar('Closet', room?['zone_closet'] ?? 50),
+                          _buildZoneBar('General', room?['zone_general'] ?? 50),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showEditChildDialog(child);
+                            },
+                            icon: const Icon(Icons.edit),
+                            label: const Text('Edit'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showResetPinDialog(child);
+                            },
+                            icon: const Icon(Icons.pin),
+                            label: const Text('Reset PIN'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String emoji, String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 24)),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildZoneBar(String zone, int score) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 60,
+            child: Text(zone, style: const TextStyle(fontSize: 13)),
+          ),
+          Expanded(
+            child: LinearProgressIndicator(
+              value: score / 100,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation(AppTheme.getCleanlinessColor(score)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('$score%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
         ],
       ),
     );

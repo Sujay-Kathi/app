@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../main.dart';
+import '../../child/providers/child_provider.dart';
+import '../../room/providers/room_provider.dart';
+import '../providers/store_provider.dart';
 
 class StoreScreen extends StatefulWidget {
   const StoreScreen({super.key});
@@ -12,31 +17,40 @@ class StoreScreen extends StatefulWidget {
 
 class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  int _availablePoints = 1250;
-
-  final List<Map<String, dynamic>> _themes = [
-    {'id': '1', 'name': 'Space Adventure', 'price': 500, 'emoji': '🚀', 'owned': false},
-    {'id': '2', 'name': 'Ocean Paradise', 'price': 500, 'emoji': '🌊', 'owned': true},
-    {'id': '3', 'name': 'Jungle Safari', 'price': 500, 'emoji': '🌴', 'owned': false},
-    {'id': '4', 'name': 'Gaming Zone', 'price': 750, 'emoji': '🎮', 'owned': false},
-    {'id': '5', 'name': 'Candy Land', 'price': 600, 'emoji': '🍬', 'owned': false},
-  ];
-
-  final List<Map<String, dynamic>> _decorations = [
-    {'id': '1', 'name': 'Star Poster', 'price': 50, 'emoji': '⭐', 'category': 'wall', 'owned': true},
-    {'id': '2', 'name': 'Rainbow Sticker', 'price': 75, 'emoji': '🌈', 'category': 'wall', 'owned': false},
-    {'id': '3', 'name': 'Cozy Rug', 'price': 150, 'emoji': '🟫', 'category': 'furniture', 'owned': false},
-    {'id': '4', 'name': 'Bean Bag', 'price': 200, 'emoji': '🛋️', 'category': 'furniture', 'owned': false},
-    {'id': '5', 'name': 'Desk Lamp', 'price': 100, 'emoji': '💡', 'category': 'furniture', 'owned': true},
-    {'id': '6', 'name': 'Sparkle Effect', 'price': 200, 'emoji': '✨', 'category': 'effect', 'owned': false},
-    {'id': '7', 'name': 'Lazy Cat', 'price': 300, 'emoji': '😺', 'category': 'pet', 'owned': false},
-    {'id': '8', 'name': 'Happy Dog', 'price': 300, 'emoji': '🐕', 'category': 'pet', 'owned': false},
-  ];
+  bool _isLoading = true;
+  int _availablePoints = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final childId = context.read<ChildProvider>().childId;
+    if (childId == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await context.read<StoreProvider>().loadStoreData(childId);
+      
+      // Get available points
+      final childData = await supabase
+          .from('tidy_children')
+          .select('available_points')
+          .eq('id', childId)
+          .single();
+      
+      setState(() {
+        _availablePoints = childData['available_points'] ?? 0;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading store: $e');
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -56,12 +70,32 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  const Text(
-                    'Rewards Store',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppTheme.primary, AppTheme.primaryDark],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
                     ),
+                    child: const Icon(Icons.store_rounded, color: Colors.white, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Rewards Store',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Spend your points!',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
                   ),
                   const Spacer(),
                   Container(
@@ -116,9 +150,11 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
                 ),
                 labelColor: Colors.white,
                 unselectedLabelColor: Colors.grey.shade600,
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                 tabs: const [
                   Tab(text: '🎨 Themes'),
-                  Tab(text: '🛋️ Decorations'),
+                  Tab(text: '🛋️ Decor'),
+                  Tab(text: '🐾 Pets'),
                 ],
               ),
             ),
@@ -127,13 +163,20 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
 
             // Content
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildThemesGrid(),
-                  _buildDecorationsGrid(),
-                ],
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : Consumer<StoreProvider>(
+                      builder: (context, storeProvider, _) {
+                        return TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildThemesGrid(storeProvider),
+                            _buildDecorationsGrid(storeProvider),
+                            _buildPetsGrid(storeProvider),
+                          ],
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -141,103 +184,224 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildThemesGrid() {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
+  Widget _buildThemesGrid(StoreProvider storeProvider) {
+    final themes = storeProvider.themes;
+    
+    if (themes.isEmpty) {
+      return _buildEmptyState('🎨', 'No themes available');
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.85,
+        ),
+        itemCount: themes.length,
+        itemBuilder: (context, index) {
+          final theme = themes[index];
+          final owned = storeProvider.ownsItem(theme['id'], 'theme') || 
+                        (theme['is_default'] == true);
+          return _buildItemCard(
+            id: theme['id'],
+            name: theme['name'] ?? 'Theme',
+            emoji: _getThemeEmoji(theme['name'] ?? ''),
+            price: theme['price'] ?? 0,
+            owned: owned,
+            type: 'theme',
+            description: theme['description'],
+          ).animate().fadeIn(delay: Duration(milliseconds: 100 * index)).scale(
+            begin: const Offset(0.8, 0.8),
+          );
+        },
       ),
-      itemCount: _themes.length,
-      itemBuilder: (context, index) {
-        final theme = _themes[index];
-        return _buildItemCard(
-          name: theme['name'],
-          emoji: theme['emoji'],
-          price: theme['price'],
-          owned: theme['owned'],
-          onPurchase: () => _purchaseItem(theme, 'theme'),
-        ).animate().fadeIn(delay: Duration(milliseconds: 100 * index)).scale(
-          begin: const Offset(0.8, 0.8),
-        );
-      },
     );
   }
 
-  Widget _buildDecorationsGrid() {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
+  Widget _buildDecorationsGrid(StoreProvider storeProvider) {
+    final decorations = storeProvider.decorations
+        .where((d) => d['category'] != 'pet')
+        .toList();
+    
+    if (decorations.isEmpty) {
+      return _buildEmptyState('🛋️', 'No decorations available');
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.85,
+        ),
+        itemCount: decorations.length,
+        itemBuilder: (context, index) {
+          final decoration = decorations[index];
+          final owned = storeProvider.ownsItem(decoration['id'], 'decoration');
+          return _buildItemCard(
+            id: decoration['id'],
+            name: decoration['name'] ?? 'Decoration',
+            emoji: decoration['icon'] ?? '🎨',
+            price: decoration['price'] ?? 0,
+            owned: owned,
+            type: 'decoration',
+            description: decoration['description'],
+            category: decoration['category'],
+          ).animate().fadeIn(delay: Duration(milliseconds: 100 * index)).scale(
+            begin: const Offset(0.8, 0.8),
+          );
+        },
       ),
-      itemCount: _decorations.length,
-      itemBuilder: (context, index) {
-        final decoration = _decorations[index];
-        return _buildItemCard(
-          name: decoration['name'],
-          emoji: decoration['emoji'],
-          price: decoration['price'],
-          owned: decoration['owned'],
-          category: decoration['category'],
-          onPurchase: () => _purchaseItem(decoration, 'decoration'),
-        ).animate().fadeIn(delay: Duration(milliseconds: 100 * index)).scale(
-          begin: const Offset(0.8, 0.8),
-        );
-      },
     );
+  }
+
+  Widget _buildPetsGrid(StoreProvider storeProvider) {
+    final pets = storeProvider.decorations
+        .where((d) => d['category'] == 'pet')
+        .toList();
+    
+    if (pets.isEmpty) {
+      return _buildEmptyState('🐾', 'No pets available yet');
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.85,
+        ),
+        itemCount: pets.length,
+        itemBuilder: (context, index) {
+          final pet = pets[index];
+          final owned = storeProvider.ownsItem(pet['id'], 'decoration');
+          return _buildItemCard(
+            id: pet['id'],
+            name: pet['name'] ?? 'Pet',
+            emoji: pet['icon'] ?? '🐾',
+            price: pet['price'] ?? 0,
+            owned: owned,
+            type: 'decoration',
+            description: pet['description'],
+            isPet: true,
+          ).animate().fadeIn(delay: Duration(milliseconds: 100 * index)).scale(
+            begin: const Offset(0.8, 0.8),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String emoji, String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 60)),
+          const SizedBox(height: 16),
+          Text(message, style: TextStyle(color: Colors.grey.shade600)),
+        ],
+      ),
+    );
+  }
+
+  String _getThemeEmoji(String themeName) {
+    final emojiMap = {
+      'Default': '🏠',
+      'Space Adventure': '🚀',
+      'Ocean Paradise': '🌊',
+      'Jungle Safari': '🌴',
+      'Gaming Zone': '🎮',
+      'Candy Land': '🍬',
+      'Arctic Ice': '❄️',
+    };
+    return emojiMap[themeName] ?? '🎨';
   }
 
   Widget _buildItemCard({
+    required String id,
     required String name,
     required String emoji,
     required int price,
     required bool owned,
+    required String type,
+    String? description,
     String? category,
-    required VoidCallback onPurchase,
+    bool isPet = false,
   }) {
     final canAfford = _availablePoints >= price;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: owned ? AppTheme.success.withOpacity(0.5) : Colors.grey.shade200,
-          width: owned ? 2 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    return GestureDetector(
+      onTap: () => _showItemDetail(
+        id: id,
+        name: name,
+        emoji: emoji,
+        price: price,
+        owned: owned,
+        type: type,
+        description: description,
+        canAfford: canAfford,
       ),
-      child: Column(
-        children: [
-          // Emoji Display
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withOpacity(0.1),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Center(
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: owned ? AppTheme.success.withOpacity(0.5) : Colors.grey.shade200,
+            width: owned ? 2 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // Emoji Display
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      (isPet ? Colors.pink : AppTheme.primary).withOpacity(0.1),
+                      (isPet ? Colors.purple : AppTheme.secondary).withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
                 child: Stack(
                   children: [
-                    Text(
-                      emoji,
-                      style: const TextStyle(fontSize: 60),
+                    Center(
+                      child: Text(
+                        emoji,
+                        style: const TextStyle(fontSize: 55),
+                      ).animate(onPlay: isPet ? (c) => c.repeat(reverse: true) : null)
+                        .scale(
+                          begin: const Offset(1, 1),
+                          end: isPet ? const Offset(1.1, 1.1) : const Offset(1, 1),
+                          duration: 1500.ms,
+                        ),
                     ),
                     if (owned)
                       Positioned(
-                        top: -5,
-                        right: -5,
+                        top: 8,
+                        right: 8,
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: const BoxDecoration(
@@ -251,48 +415,61 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
                           ),
                         ),
                       ),
+                    if (category != null && !isPet)
+                      Positioned(
+                        bottom: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _getCategoryLabel(category),
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
             ),
-          ),
 
-          // Info
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+            // Info
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 8),
-                owned
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.success.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          'Owned',
-                          style: TextStyle(
-                            color: AppTheme.success,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                  const SizedBox(height: 8),
+                  owned
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppTheme.success.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ),
-                      )
-                    : GestureDetector(
-                        onTap: canAfford ? onPurchase : null,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: const Text(
+                            '✓ Owned',
+                            style: TextStyle(
+                              color: AppTheme.success,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
                             color: canAfford ? AppTheme.primary : Colors.grey.shade300,
                             borderRadius: BorderRadius.circular(12),
@@ -303,7 +480,7 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
                               Icon(
                                 Icons.star,
                                 color: canAfford ? Colors.white : Colors.grey,
-                                size: 14,
+                                size: 12,
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -311,79 +488,268 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
                                 style: TextStyle(
                                   color: canAfford ? Colors.white : Colors.grey,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                                  fontSize: 11,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  void _purchaseItem(Map<String, dynamic> item, String type) {
-    showDialog(
+  String _getCategoryLabel(String category) {
+    final labels = {
+      'wall': '🖼️ Wall',
+      'furniture': '🪑 Furniture',
+      'effect': '✨ Effect',
+      'accessory': '🎀 Accessory',
+    };
+    return labels[category] ?? category;
+  }
+
+  void _showItemDetail({
+    required String id,
+    required String name,
+    required String emoji,
+    required int price,
+    required bool owned,
+    required String type,
+    String? description,
+    required bool canAfford,
+  }) {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Text(item['emoji'], style: const TextStyle(fontSize: 28)),
-            const SizedBox(width: 8),
-            const Expanded(child: Text('Confirm Purchase')),
-          ],
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        content: Column(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Buy "${item['name']}" for ${item['price']} points?'),
-            const SizedBox(height: 8),
-            Text(
-              'You have $_availablePoints points',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            // Handle
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
+            
+            // Item preview
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Center(
+                child: Text(emoji, style: const TextStyle(fontSize: 60)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            Text(
+              name,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            if (description != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                description,
+                style: TextStyle(color: Colors.grey.shade600),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 24),
+            
+            if (owned)
+              Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.success.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.check_circle, color: AppTheme.success),
+                        SizedBox(width: 8),
+                        Text(
+                          'You own this!',
+                          style: TextStyle(
+                            color: AppTheme.success,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (type == 'theme') ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _applyTheme(id, name),
+                        icon: const Icon(Icons.color_lens, color: Colors.white),
+                        label: const Text(
+                          'Apply Theme',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              )
+            else ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.star, color: AppTheme.accent, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$price points',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.accent,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You have $_availablePoints points',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: canAfford ? () => _purchaseItem(id, name, emoji, price, type) : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: canAfford ? AppTheme.primary : Colors.grey.shade300,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(
+                    canAfford ? 'Buy Now! 🛒' : 'Not Enough Points 😢',
+                    style: TextStyle(
+                      color: canAfford ? Colors.white : Colors.grey.shade600,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _completePurchase(item, type);
-            },
-            child: const Text('Buy'),
-          ),
-        ],
       ),
     );
   }
 
-  void _completePurchase(Map<String, dynamic> item, String type) {
-    setState(() {
-      _availablePoints -= item['price'] as int;
-      item['owned'] = true;
-    });
+  void _purchaseItem(String id, String name, String emoji, int price, String type) async {
+    Navigator.pop(context);
+    
+    final childId = context.read<ChildProvider>().childId;
+    if (childId == null) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Text(item['emoji'], style: const TextStyle(fontSize: 20)),
-            const SizedBox(width: 8),
-            Text('${item['name']} purchased!'),
-          ],
-        ),
-        backgroundColor: AppTheme.success,
-        behavior: SnackBarBehavior.floating,
-      ),
+    final success = await context.read<StoreProvider>().purchaseItem(
+      childId: childId,
+      itemId: id,
+      itemType: type,
+      price: price,
     );
+
+    if (success) {
+      setState(() {
+        _availablePoints -= price;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 24)),
+              const SizedBox(width: 8),
+              Text('$name purchased! 🎉'),
+            ],
+          ),
+          backgroundColor: AppTheme.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.read<StoreProvider>().error ?? 'Purchase failed'),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _applyTheme(String themeId, String themeName) async {
+    Navigator.pop(context);
+    
+    final childId = context.read<ChildProvider>().childId;
+    if (childId == null) return;
+
+    try {
+      // Import RoomProvider
+      final roomProvider = context.read<RoomProvider>();
+      final success = await roomProvider.changeTheme(childId, themeId);
+      
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Text('🎨', style: TextStyle(fontSize: 24)),
+                const SizedBox(width: 8),
+                Text('$themeName applied to your room! ✨'),
+              ],
+            ),
+            backgroundColor: AppTheme.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to apply theme: $e'),
+            backgroundColor: AppTheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }

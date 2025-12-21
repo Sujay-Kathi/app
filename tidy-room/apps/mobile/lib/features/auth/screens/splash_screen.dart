@@ -21,12 +21,25 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuth() async {
+    // Wait for splash animation (minimum 2 seconds)
     await Future.delayed(const Duration(seconds: 2));
     
     if (!mounted) return;
 
     final authProvider = context.read<AuthProvider>();
     
+    // Wait for auth provider to finish initialization
+    // Poll until initialized or timeout after 5 more seconds
+    int attempts = 0;
+    while (!authProvider.isInitialized && attempts < 50 && mounted) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      attempts++;
+    }
+    
+    if (!mounted) return;
+    
+    debugPrint('SplashScreen: isInitialized=${authProvider.isInitialized}, isAuthenticated=${authProvider.isAuthenticated}, isParent=${authProvider.isParent}');
+
     if (authProvider.isAuthenticated) {
       if (authProvider.isParent) {
         context.go('/parent');

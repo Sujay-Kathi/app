@@ -14,6 +14,8 @@ import '../../features/profile/screens/profile_screen.dart';
 import '../../features/parent/screens/parent_dashboard_screen.dart';
 import '../../features/parent/screens/manage_children_screen.dart';
 import '../../features/parent/screens/assign_task_screen.dart';
+import '../../features/parent/screens/reports_screen.dart';
+import '../../features/achievements/screens/achievements_screen.dart';
 
 class AppRouter {
   static final GoRouter router = GoRouter(
@@ -74,6 +76,11 @@ class AppRouter {
             builder: (context, state) => const StoreScreen(),
           ),
           GoRoute(
+            path: '/achievements',
+            name: 'achievements',
+            builder: (context, state) => const AchievementsScreen(),
+          ),
+          GoRoute(
             path: '/profile',
             name: 'profile',
             builder: (context, state) => const ProfileScreen(),
@@ -96,6 +103,11 @@ class AppRouter {
             path: 'assign-task',
             name: 'assignTask',
             builder: (context, state) => const AssignTaskScreen(),
+          ),
+          GoRoute(
+            path: 'reports',
+            name: 'reports',
+            builder: (context, state) => const ReportsScreen(),
           ),
         ],
       ),

@@ -46,6 +46,8 @@ class _RoomScreenState extends State<RoomScreen> with SingleTickerProviderStateM
     final childId = childProvider.childId;
     
     if (childId != null) {
+      // Refresh child data first
+      await childProvider.fetchChild(childId);
       // Load room data
       await context.read<RoomProvider>().fetchRoom(childId);
       // Load tasks
@@ -56,8 +58,10 @@ class _RoomScreenState extends State<RoomScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _refresh() async {
-    final childId = context.read<ChildProvider>().childId;
+    final childProvider = context.read<ChildProvider>();
+    final childId = childProvider.childId;
     if (childId != null) {
+      await childProvider.fetchChild(childId);
       await context.read<RoomProvider>().fetchRoom(childId);
       await context.read<TaskProvider>().fetchTasks(childId);
     }
@@ -249,6 +253,69 @@ class _RoomScreenState extends State<RoomScreen> with SingleTickerProviderStateM
 
                     const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
+                    // Pending Tasks Section
+                    SliverToBoxAdapter(
+                      child: Consumer<TaskProvider>(
+                        builder: (context, taskProvider, _) {
+                          final pendingTasks = taskProvider.pendingTasks;
+                          
+                          if (pendingTasks.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: AppTheme.error.withOpacity(0.2),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: Text(
+                                            '${pendingTasks.length}',
+                                            style: const TextStyle(
+                                              color: AppTheme.error,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Tasks To Do',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    TextButton(
+                                      onPressed: () => context.go('/tasks'),
+                                      child: const Text('View All'),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                // Show first 3 pending tasks
+                                ...pendingTasks.take(3).map((task) => 
+                                  _buildTaskCard(task)).toList(),
+                              ],
+                            ),
+                          ).animate().fadeIn(delay: 500.ms);
+                        },
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
                     // Quick Actions
                     SliverToBoxAdapter(
                       child: Padding(
@@ -268,8 +335,8 @@ class _RoomScreenState extends State<RoomScreen> with SingleTickerProviderStateM
                               children: [
                                 Expanded(
                                   child: _buildQuickAction(
-                                    icon: Icons.add_task,
-                                    label: 'New Task',
+                                    icon: Icons.checklist,
+                                    label: 'My Tasks',
                                     color: AppTheme.secondary,
                                     onTap: () => context.go('/tasks'),
                                   ),
@@ -277,8 +344,8 @@ class _RoomScreenState extends State<RoomScreen> with SingleTickerProviderStateM
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: _buildQuickAction(
-                                    icon: Icons.brush_rounded,
-                                    label: 'Decorate',
+                                    icon: Icons.store_rounded,
+                                    label: 'Store',
                                     color: AppTheme.primary,
                                     onTap: () => context.go('/store'),
                                   ),
@@ -286,10 +353,10 @@ class _RoomScreenState extends State<RoomScreen> with SingleTickerProviderStateM
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: _buildQuickAction(
-                                    icon: Icons.color_lens_rounded,
-                                    label: 'Theme',
+                                    icon: Icons.emoji_events_rounded,
+                                    label: 'Awards',
                                     color: AppTheme.accent,
-                                    onTap: () => context.go('/store'),
+                                    onTap: () => context.go('/achievements'),
                                   ),
                                 ),
                               ],
@@ -351,6 +418,118 @@ class _RoomScreenState extends State<RoomScreen> with SingleTickerProviderStateM
                 fontWeight: FontWeight.w600,
                 color: color,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTaskCard(Map<String, dynamic> task) {
+    final zone = task['zone'] ?? 'general';
+    final zoneColor = AppTheme.getZoneColor(zone);
+    final icon = task['icon'] ?? '✨';
+    final title = task['title'] ?? 'Task';
+    final points = task['points'] ?? 0;
+    final difficulty = task['difficulty'] ?? 'medium';
+    final requiresVerification = task['requires_verification'] ?? false;
+
+    return GestureDetector(
+      onTap: () {
+        context.go('/tasks/${task['id']}');
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: zoneColor.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: zoneColor.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: zoneColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Text(icon, style: const TextStyle(fontSize: 24)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Task Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.getDifficultyColor(difficulty).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          difficulty.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.getDifficultyColor(difficulty),
+                          ),
+                        ),
+                      ),
+                      if (requiresVerification) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.camera_alt, size: 14, color: Colors.grey),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Points
+            Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.star, color: AppTheme.accent, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$points',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.accent,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Icon(
+                  Icons.chevron_right,
+                  color: Colors.grey,
+                  size: 20,
+                ),
+              ],
             ),
           ],
         ),

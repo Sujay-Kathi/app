@@ -57,7 +57,14 @@ class ProfileProvider extends ChangeNotifier {
           .from('tidy_children')
           .select()
           .eq('id', childId)
-          .single();
+          .maybeSingle();
+
+      if (childResponse == null) {
+        debugPrint('No child found with ID: $childId');
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
 
       _child = childResponse;
 
@@ -68,7 +75,11 @@ class ProfileProvider extends ChangeNotifier {
           .eq('child_id', childId)
           .maybeSingle();
 
-      _streak = streakResponse;
+      _streak = streakResponse ?? {
+        'current_streak': 0,
+        'longest_streak': 0,
+        'streak_multiplier': 1.0,
+      };
 
       // Fetch unlocked achievements
       final achievementsResponse = await supabase
@@ -84,6 +95,7 @@ class ProfileProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      debugPrint('Error fetching child profile: $e');
       _error = e.toString();
       _isLoading = false;
       notifyListeners();

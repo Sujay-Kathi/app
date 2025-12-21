@@ -40,12 +40,26 @@ class RoomProvider extends ChangeNotifier {
           .from('tidy_rooms')
           .select('*, theme:tidy_themes(*)')
           .eq('child_id', childId)
-          .single();
+          .maybeSingle();
 
-      _room = response;
-      _theme = response['theme'];
+      if (response != null) {
+        _room = response;
+        _theme = response['theme'];
+      } else {
+        // Set default room values if room doesn't exist
+        _room = {
+          'cleanliness_score': 50,
+          'zone_bed': 50,
+          'zone_floor': 50,
+          'zone_desk': 50,
+          'zone_closet': 50,
+          'zone_general': 50,
+        };
+        _theme = null;
+        debugPrint('No room found for child $childId, using defaults');
+      }
 
-      // Fetch equipped decorations
+      // Fetch equipped decorations (won't fail if empty)
       final decorations = await supabase
           .from('tidy_inventory')
           .select('*, decoration:tidy_decorations(*)')
@@ -58,6 +72,7 @@ class RoomProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      debugPrint('Error fetching room: $e');
       _error = e.toString();
       _isLoading = false;
       notifyListeners();

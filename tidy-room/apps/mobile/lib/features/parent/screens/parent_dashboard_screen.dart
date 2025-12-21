@@ -258,14 +258,17 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     final streak = child['streak'];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildChildCard(
-                        name: child['name'] ?? 'Child',
-                        emoji: child['avatar_emoji'] ?? '👦',
-                        age: child['age'] ?? 0,
-                        streak: streak?['current_streak'] ?? 0,
-                        roomScore: room?['cleanliness_score'] ?? 50,
-                        pendingTasks: _getPendingTasksForChild(child['id']),
-                        completedToday: _getCompletedTodayForChild(child['id']),
+                      child: GestureDetector(
+                        onTap: () => _showChildDetails(child),
+                        child: _buildChildCard(
+                          name: child['name'] ?? 'Child',
+                          emoji: child['avatar_emoji'] ?? '👦',
+                          age: child['age'] ?? 0,
+                          streak: streak?['current_streak'] ?? 0,
+                          roomScore: room?['cleanliness_score'] ?? 50,
+                          pendingTasks: _getPendingTasksForChild(child['id']),
+                          completedToday: _getCompletedTodayForChild(child['id']),
+                        ),
                       ).animate().fadeIn(delay: Duration(milliseconds: 300 + (index * 100))).slideX(begin: 0.1),
                     );
                   }),
@@ -309,11 +312,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         icon: Icons.bar_chart,
                         label: 'Reports',
                         color: AppTheme.accent,
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Reports coming soon!')),
-                          );
-                        },
+                        onTap: () => context.push('/parent/reports'),
                       ),
                     ),
                   ],
@@ -605,6 +604,212 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         ),
       );
     }
+  }
+
+  void _showChildDetails(Map<String, dynamic> child) {
+    final room = child['room'];
+    final streak = child['streak'];
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    // Avatar and name
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      child: Center(
+                        child: Text(
+                          child['avatar_emoji'] ?? '👦',
+                          style: const TextStyle(fontSize: 50),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      child['name'] ?? 'Child',
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'Age ${child['age'] ?? '?'} • Level ${child['current_level'] ?? 1}',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Stats Grid
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildDetailStatCard(
+                            '⭐',
+                            'Total Points',
+                            '${child['total_points'] ?? 0}',
+                            AppTheme.accent,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildDetailStatCard(
+                            '💰',
+                            'Available',
+                            '${child['available_points'] ?? 0}',
+                            AppTheme.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildDetailStatCard(
+                            '🔥',
+                            'Current Streak',
+                            '${streak?['current_streak'] ?? 0} days',
+                            Colors.orange,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildDetailStatCard(
+                            '🏆',
+                            'Best Streak',
+                            '${streak?['longest_streak'] ?? 0} days',
+                            AppTheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Room Status
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.secondary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '🏠 Room Status',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildZoneBar('Bed', room?['zone_bed'] ?? 50),
+                          _buildZoneBar('Floor', room?['zone_floor'] ?? 50),
+                          _buildZoneBar('Desk', room?['zone_desk'] ?? 50),
+                          _buildZoneBar('Closet', room?['zone_closet'] ?? 50),
+                          _buildZoneBar('General', room?['zone_general'] ?? 50),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Manage button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          context.push('/parent/children');
+                        },
+                        icon: const Icon(Icons.settings, color: Colors.white),
+                        label: const Text('Manage Children', style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailStatCard(String emoji, String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 24)),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildZoneBar(String zone, int score) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 60,
+            child: Text(zone, style: const TextStyle(fontSize: 13)),
+          ),
+          Expanded(
+            child: LinearProgressIndicator(
+              value: score / 100,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation(AppTheme.getCleanlinessColor(score)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('$score%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
   }
 
   Widget _buildQuickStat({

@@ -111,6 +111,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontSize: 14,
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        // Level Progress Bar
+                        Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'XP: ${childProvider.totalXp}',
+                                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                ),
+                                Text(
+                                  '${profileProvider.xpToNextLevel} to Level ${level + 1}',
+                                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: LinearProgressIndicator(
+                                value: profileProvider.levelProgress,
+                                backgroundColor: Colors.white.withOpacity(0.2),
+                                valueColor: const AlwaysStoppedAnimation(AppTheme.accent),
+                                minHeight: 8,
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 20),
                         // Stats Row
                         Row(
@@ -126,6 +155,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ).animate().fadeIn().slideY(begin: 0.2),
 
+                  const SizedBox(height: 16),
+
+                  // Streak Multiplier Card
+                  if (streak > 0)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.orange.withOpacity(0.2),
+                            Colors.red.withOpacity(0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Text('🔥', style: TextStyle(fontSize: 40)),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      '$streak Day${streak > 1 ? 's' : ''} Streak!',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '${((profileProvider.streakMultiplier - 1) * 100).toInt()}% Bonus',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  profileProvider.streakMultiplier > 1 
+                                      ? 'You\'re earning ${profileProvider.streakMultiplier}x points!'
+                                      : 'Keep it up to earn bonus points!',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ).animate().fadeIn(delay: 100.ms).slideX(begin: 0.1),
+
                   const SizedBox(height: 24),
 
                   // Achievements Section
@@ -140,7 +237,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () {},
+                        onPressed: () => context.go('/achievements'),
                         child: const Text('See All'),
                       ),
                     ],

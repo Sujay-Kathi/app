@@ -16,14 +16,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<String> _routes = ['/room', '/tasks', '/store', '/profile'];
+  final List<String> _routes = ['/room', '/tasks', '/store', '/achievements', '/profile'];
   final List<IconData> _icons = [
     Icons.home_rounded,
     Icons.checklist_rounded,
     Icons.store_rounded,
+    Icons.emoji_events_rounded,
     Icons.person_rounded,
   ];
-  final List<String> _labels = ['Room', 'Tasks', 'Store', 'Profile'];
+  final List<String> _labels = ['Room', 'Tasks', 'Store', 'Awards', 'Profile'];
 
   void _onTabTapped(int index) {
     if (index != _currentIndex) {

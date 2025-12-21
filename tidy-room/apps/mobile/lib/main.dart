@@ -11,6 +11,7 @@ import 'features/room/providers/room_provider.dart';
 import 'features/tasks/providers/task_provider.dart';
 import 'features/profile/providers/profile_provider.dart';
 import 'features/child/providers/child_provider.dart';
+import 'features/store/providers/store_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +57,7 @@ class TidyRoomApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => RoomProvider()),
         ChangeNotifierProvider(create: (_) => TaskProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
+        ChangeNotifierProvider(create: (_) => StoreProvider()),
       ],
       child: MaterialApp.router(
         title: 'Tidy Room Simulator',
