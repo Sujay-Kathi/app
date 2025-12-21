@@ -79,53 +79,96 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> signUp({
-    required String email,
-    required String password,
-    required String displayName,
-  }) async {
-    try {
-      _status = AuthStatus.loading;
-      _errorMessage = null;
-      notifyListeners();
+  required String email,
+  required String password,
+  required String displayName,
+}) async {
+  try {
+    _status = AuthStatus.loading;
+    _errorMessage = null;
+    notifyListeners();
 
-      final response = await supabase.auth.signUp(
-        email: email,
-        password: password,
-        data: {'display_name': displayName},
+    // Step 1: Create the auth user
+    final response = await supabase.auth.signUp(
+      email: email,
+      password: password,
+      data: {'display_name': displayName},
+    );
+
+    if (response.user == null) {
+      _errorMessage = 'Failed to create user account';
+      _status = AuthStatus.error;
+      notifyListeners();
+      return false;
+    }
+
+    // Step 2: Wait for the database trigger to create the profile
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    // Step 3: Create family using the SECURITY DEFINER function (bypasses RLS)
+    try {
+      final familyResponse = await supabase.rpc(
+        'create_family_for_user',
+        params: {
+          'p_family_name': "$displayName's Family",
+          'p_user_id': response.user!.id,
+        },
       );
 
-      if (response.user != null) {
-        // Wait a moment for the database trigger to create the profile
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // Create family
+      if (familyResponse != null) {
+        debugPrint('Family created successfully: $familyResponse');
+      }
+    } catch (rpcError) {
+      debugPrint('RPC family creation failed: $rpcError');
+      
+      // Fallback: Try direct insert (in case RPC function doesn't exist yet)
+      try {
         final familyResponse = await supabase.from('tidy_families').insert({
           'name': "$displayName's Family",
           'created_by': response.user!.id,
         }).select().single();
 
-        // Update profile with family ID (profile was auto-created by trigger)
+        // Update profile with family ID
         await supabase.from('tidy_profiles').update({
           'family_id': familyResponse['id'],
-          'display_name': displayName, // Ensure display name is set
+          'display_name': displayName,
         }).eq('id', response.user!.id);
-
-        return true;
+        
+        debugPrint('Family created via fallback: $familyResponse');
+      } catch (insertError) {
+        debugPrint('Fallback family creation also failed: $insertError');
+        // Don't fail signup - user can create family later
+        // Just log the error and continue
+        _errorMessage = 'Account created but family setup failed. Please try logging in.';
+        _status = AuthStatus.authenticated;
+        _user = response.user;
+        _userRole = 'parent';
+        notifyListeners();
+        return true; // Still return success since auth account was created
       }
-
-      return false;
-    } on AuthException catch (e) {
-      _errorMessage = e.message;
-      _status = AuthStatus.error;
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _errorMessage = e.toString();
-      _status = AuthStatus.error;
-      notifyListeners();
-      return false;
     }
+
+    // Step 4: Load the user profile
+    _user = response.user;
+    _userRole = 'parent';
+    _status = AuthStatus.authenticated;
+    notifyListeners();
+
+    return true;
+  } on AuthException catch (e) {
+    debugPrint('AuthException during signup: ${e.message}');
+    _errorMessage = e.message;
+    _status = AuthStatus.error;
+    notifyListeners();
+    return false;
+  } catch (e) {
+    debugPrint('Unexpected error during signup: $e');
+    _errorMessage = 'Registration failed: ${e.toString()}';
+    _status = AuthStatus.error;
+    notifyListeners();
+    return false;
   }
+}
 
   Future<bool> signIn({
     required String email,
