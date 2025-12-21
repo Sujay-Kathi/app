@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../providers/room_provider.dart';
+import '../../tasks/providers/task_provider.dart';
+import '../../child/providers/child_provider.dart';
 import '../../profile/providers/profile_provider.dart';
 import '../widgets/virtual_room.dart';
 import '../widgets/room_stats_card.dart';
@@ -18,6 +21,7 @@ class RoomScreen extends StatefulWidget {
 
 class _RoomScreenState extends State<RoomScreen> with SingleTickerProviderStateMixin {
   late AnimationController _sparkleController;
+  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -26,6 +30,37 @@ class _RoomScreenState extends State<RoomScreen> with SingleTickerProviderStateM
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInitialized) {
+      _loadData();
+      _isInitialized = true;
+    }
+  }
+
+  Future<void> _loadData() async {
+    final childProvider = context.read<ChildProvider>();
+    final childId = childProvider.childId;
+    
+    if (childId != null) {
+      // Load room data
+      await context.read<RoomProvider>().fetchRoom(childId);
+      // Load tasks
+      await context.read<TaskProvider>().fetchTasks(childId);
+      // Load profile
+      await context.read<ProfileProvider>().fetchChildProfile(childId);
+    }
+  }
+
+  Future<void> _refresh() async {
+    final childId = context.read<ChildProvider>().childId;
+    if (childId != null) {
+      await context.read<RoomProvider>().fetchRoom(childId);
+      await context.read<TaskProvider>().fetchTasks(childId);
+    }
   }
 
   @override
@@ -49,192 +84,245 @@ class _RoomScreenState extends State<RoomScreen> with SingleTickerProviderStateM
           ),
         ),
         child: SafeArea(
-          child: CustomScrollView(
-            slivers: [
-              // App Bar
-              SliverAppBar(
-                floating: true,
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                title: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppTheme.primary, AppTheme.primaryDark],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.home_rounded,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'My Room',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Keep it tidy! ✨',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                actions: [
-                  // Points Display
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accent.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.star_rounded, color: AppTheme.accent, size: 20),
-                        const SizedBox(width: 4),
-                        Text(
-                          '1,250',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.amber[800],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ).animate(onPlay: (c) => c.repeat()).shimmer(
-                    duration: 3000.ms,
-                    color: Colors.white.withOpacity(0.3),
-                  ),
-                  const SizedBox(width: 16),
-                ],
-              ),
-
-              // Room Stats Card
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: const RoomStatsCard().animate().fadeIn().slideY(begin: 0.2),
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-              // Virtual Room Display
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: const VirtualRoom().animate().fadeIn(delay: 200.ms).scale(
-                    begin: const Offset(0.95, 0.95),
-                    end: const Offset(1, 1),
-                  ),
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-              // Zone Progress Section
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Consumer3<ChildProvider, RoomProvider, ProfileProvider>(
+            builder: (context, childProvider, roomProvider, profileProvider, _) {
+              // Show loading state
+              if (roomProvider.isLoading || profileProvider.isLoading) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        'Zone Progress',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          // Navigate to tasks
-                        },
-                        child: const Text('See Tasks'),
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Loading your room...'),
+                    ],
+                  ),
+                );
+              }
+
+              // Show error state
+              if (roomProvider.error != null) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text('Error: ${roomProvider.error}'),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadData,
+                        child: const Text('Retry'),
                       ),
                     ],
-                  ).animate().fadeIn(delay: 400.ms),
-                ),
-              ),
+                  ),
+                );
+              }
 
-              // Zone Progress List
-              SliverToBoxAdapter(
-                child: const ZoneProgressList().animate().fadeIn(delay: 500.ms),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-              // Quick Actions
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Quick Actions',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
+              return RefreshIndicator(
+                onRefresh: _refresh,
+                child: CustomScrollView(
+                  slivers: [
+                    // App Bar
+                    SliverAppBar(
+                      floating: true,
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      title: Row(
                         children: [
-                          Expanded(
-                            child: _buildQuickAction(
-                              icon: Icons.add_task,
-                              label: 'New Task',
-                              color: AppTheme.secondary,
-                              onTap: () {},
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [AppTheme.primary, AppTheme.primaryDark],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.home_rounded,
+                              color: Colors.white,
+                              size: 24,
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildQuickAction(
-                              icon: Icons.brush_rounded,
-                              label: 'Decorate',
-                              color: AppTheme.primary,
-                              onTap: () {},
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildQuickAction(
-                              icon: Icons.color_lens_rounded,
-                              label: 'Theme',
-                              color: AppTheme.accent,
-                              onTap: () {},
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "${childProvider.name}'s Room",
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                _getCleanlinessMessage(roomProvider.cleanlinessScore),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ).animate().fadeIn(delay: 600.ms),
-                ),
-              ),
+                      actions: [
+                        // Points Display
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accent.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.star_rounded, color: AppTheme.accent, size: 20),
+                              const SizedBox(width: 4),
+                              Text(
+                                _formatPoints(childProvider.availablePoints),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.amber[800],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ).animate(onPlay: (c) => c.repeat()).shimmer(
+                          duration: 3000.ms,
+                          color: Colors.white.withOpacity(0.3),
+                        ),
+                        const SizedBox(width: 16),
+                      ],
+                    ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
-            ],
+                    // Room Stats Card
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: const RoomStatsCard().animate().fadeIn().slideY(begin: 0.2),
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                    // Virtual Room Display
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: const VirtualRoom().animate().fadeIn(delay: 200.ms).scale(
+                          begin: const Offset(0.95, 0.95),
+                          end: const Offset(1, 1),
+                        ),
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                    // Zone Progress Section
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Zone Progress',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => context.go('/tasks'),
+                              child: const Text('See Tasks'),
+                            ),
+                          ],
+                        ).animate().fadeIn(delay: 400.ms),
+                      ),
+                    ),
+
+                    // Zone Progress List
+                    SliverToBoxAdapter(
+                      child: const ZoneProgressList().animate().fadeIn(delay: 500.ms),
+                    ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                    // Quick Actions
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Quick Actions',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildQuickAction(
+                                    icon: Icons.add_task,
+                                    label: 'New Task',
+                                    color: AppTheme.secondary,
+                                    onTap: () => context.go('/tasks'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildQuickAction(
+                                    icon: Icons.brush_rounded,
+                                    label: 'Decorate',
+                                    color: AppTheme.primary,
+                                    onTap: () => context.go('/store'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildQuickAction(
+                                    icon: Icons.color_lens_rounded,
+                                    label: 'Theme',
+                                    color: AppTheme.accent,
+                                    onTap: () => context.go('/store'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ).animate().fadeIn(delay: 600.ms),
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
     );
+  }
+
+  String _getCleanlinessMessage(int score) {
+    if (score >= 90) return 'Sparkling clean! ✨';
+    if (score >= 70) return 'Looking good! 🌟';
+    if (score >= 40) return 'Needs some tidying 🧹';
+    if (score >= 20) return 'Getting messy! 😬';
+    return 'Disaster zone! 🆘';
+  }
+
+  String _formatPoints(int points) {
+    if (points >= 1000) {
+      return '${(points / 1000).toStringAsFixed(1)}k';
+    }
+    return points.toString();
   }
 
   Widget _buildQuickAction({

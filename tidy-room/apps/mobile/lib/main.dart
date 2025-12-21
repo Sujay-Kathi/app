@@ -10,6 +10,7 @@ import 'features/auth/providers/auth_provider.dart';
 import 'features/room/providers/room_provider.dart';
 import 'features/tasks/providers/task_provider.dart';
 import 'features/profile/providers/profile_provider.dart';
+import 'features/child/providers/child_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +52,7 @@ class TidyRoomApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ChildProvider()),
         ChangeNotifierProvider(create: (_) => RoomProvider()),
         ChangeNotifierProvider(create: (_) => TaskProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),

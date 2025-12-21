@@ -1,127 +1,197 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../providers/room_provider.dart';
+import '../../tasks/providers/task_provider.dart';
 
 class ZoneProgressList extends StatelessWidget {
   const ZoneProgressList({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Demo values
-    final zones = [
-      {'name': 'Bed Zone', 'icon': '🛏️', 'score': 85, 'color': AppTheme.zoneBed, 'tasks': 1},
-      {'name': 'Floor Zone', 'icon': '🧹', 'score': 60, 'color': AppTheme.zoneFloor, 'tasks': 2},
-      {'name': 'Desk Zone', 'icon': '📚', 'score': 75, 'color': AppTheme.zoneDesk, 'tasks': 1},
-      {'name': 'Closet Zone', 'icon': '👕', 'score': 70, 'color': AppTheme.zoneCloset, 'tasks': 0},
-      {'name': 'General', 'icon': '✨', 'score': 80, 'color': AppTheme.zoneGeneral, 'tasks': 1},
-    ];
+    return Consumer2<RoomProvider, TaskProvider>(
+      builder: (context, roomProvider, taskProvider, _) {
+        // Get zone scores from room provider
+        final zones = [
+          {
+            'name': 'Bed',
+            'zone': 'bed',
+            'icon': '🛏️',
+            'score': roomProvider.zoneBed,
+            'pending': _getZonePendingCount(taskProvider, 'bed'),
+          },
+          {
+            'name': 'Floor',
+            'zone': 'floor',
+            'icon': '🧹',
+            'score': roomProvider.zoneFloor,
+            'pending': _getZonePendingCount(taskProvider, 'floor'),
+          },
+          {
+            'name': 'Desk',
+            'zone': 'desk',
+            'icon': '📚',
+            'score': roomProvider.zoneDesk,
+            'pending': _getZonePendingCount(taskProvider, 'desk'),
+          },
+          {
+            'name': 'Closet',
+            'zone': 'closet',
+            'icon': '👕',
+            'score': roomProvider.zoneCloset,
+            'pending': _getZonePendingCount(taskProvider, 'closet'),
+          },
+          {
+            'name': 'General',
+            'zone': 'general',
+            'icon': '🧼',
+            'score': roomProvider.zoneGeneral,
+            'pending': _getZonePendingCount(taskProvider, 'general'),
+          },
+        ];
 
-    return SizedBox(
-      height: 100,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: zones.length,
-        itemBuilder: (context, index) {
-          final zone = zones[index];
-          return _buildZoneCard(
-            name: zone['name'] as String,
-            icon: zone['icon'] as String,
-            score: zone['score'] as int,
-            color: zone['color'] as Color,
-            pendingTasks: zone['tasks'] as int,
-          );
-        },
-      ),
+        return SizedBox(
+          height: 120,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: zones.length,
+            itemBuilder: (context, index) {
+              final zone = zones[index];
+              return _buildZoneCard(
+                context,
+                name: zone['name'] as String,
+                zone: zone['zone'] as String,
+                icon: zone['icon'] as String,
+                score: zone['score'] as int,
+                pendingTasks: zone['pending'] as int,
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildZoneCard({
+  int _getZonePendingCount(TaskProvider taskProvider, String zone) {
+    return taskProvider.pendingTasks
+        .where((t) => t['zone'] == zone)
+        .length;
+  }
+
+  Widget _buildZoneCard(
+    BuildContext context, {
     required String name,
+    required String zone,
     required String icon,
     required int score,
-    required Color color,
     required int pendingTasks,
   }) {
-    return Container(
-      width: 130,
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(icon, style: const TextStyle(fontSize: 24)),
-              if (pendingTasks > 0)
+    final zoneColor = AppTheme.getZoneColor(zone);
+    
+    return GestureDetector(
+      onTap: () => context.go('/tasks'),
+      child: Container(
+        width: 100,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: zoneColor.withOpacity(0.2),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Icon
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: zoneColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Text(icon, style: const TextStyle(fontSize: 20)),
+              ),
+            ),
+            
+            // Zone Name
+            Text(
+              name,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+            
+            // Score Progress
+            Stack(
+              children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  height: 6,
                   decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(10),
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(3),
                   ),
-                  child: Text(
-                    '$pendingTasks',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                ),
+                FractionallySizedBox(
+                  widthFactor: (score / 100).clamp(0.0, 1.0),
+                  child: Container(
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: AppTheme.getCleanlinessColor(score),
+                      borderRadius: BorderRadius.circular(3),
                     ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            name,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color,
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(3),
+            
+            // Pending Tasks
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '$score%',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.getCleanlinessColor(score),
                   ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: score / 100,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(3),
+                ),
+                if (pendingTasks > 0) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '$pendingTasks',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange.shade700,
                       ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$score%',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-        ],
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
