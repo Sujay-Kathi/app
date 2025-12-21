@@ -469,17 +469,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           subtitle,
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey.shade600,
+            color: Theme.of(context).textTheme.bodySmall?.color,
           ),
         ),
         trailing: Icon(
           Icons.chevron_right,
-          color: Colors.grey.shade400,
+          color: Theme.of(context).iconTheme.color?.withOpacity(0.5),
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        tileColor: Colors.grey.shade50,
+        tileColor: Theme.of(context).cardColor,
       ),
     );
   }

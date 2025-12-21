@@ -74,7 +74,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                       margin: const EdgeInsets.only(right: 12),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppTheme.primary.withOpacity(0.1) : Colors.grey.shade100,
+                        color: isSelected ? AppTheme.primary.withOpacity(0.1) : Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: isSelected ? AppTheme.primary : Colors.transparent,
@@ -89,7 +89,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                             child['name'],
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
-                              color: isSelected ? AppTheme.primary : Colors.grey.shade700,
+                              color: isSelected ? AppTheme.primary : Theme.of(context).textTheme.bodyLarge?.color,
                             ),
                           ),
                         ],
@@ -120,7 +120,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isSelected ? zone['color'] : Colors.grey.shade100,
+                        color: isSelected ? zone['color'] : Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(25),
                       ),
                       child: Row(
@@ -131,7 +131,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                             zone['name'],
                             style: TextStyle(
                               fontWeight: FontWeight.w500,
-                              color: isSelected ? Colors.white : Colors.grey.shade700,
+                              color: isSelected ? Colors.white : Theme.of(context).textTheme.bodyLarge?.color,
                             ),
                           ),
                         ],
@@ -161,10 +161,10 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isSelected ? AppTheme.primary.withOpacity(0.1) : Colors.white,
+                    color: isSelected ? AppTheme.primary.withOpacity(0.1) : Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isSelected ? AppTheme.primary : Colors.grey.shade200,
+                      color: isSelected ? AppTheme.primary : Theme.of(context).dividerColor,
                       width: isSelected ? 2 : 1,
                     ),
                   ),
@@ -237,7 +237,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -280,7 +280,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -300,7 +300,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? AppTheme.getDifficultyColor(diff)
-                                  : Colors.white,
+                                  : Theme.of(context).cardColor,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: AppTheme.getDifficultyColor(diff),
@@ -333,7 +333,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(

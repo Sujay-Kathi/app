@@ -231,8 +231,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   Container(
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Theme.of(context).dividerColor),
                     ),
                     child: Column(
                       children: [
@@ -335,7 +336,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Center(
@@ -848,7 +849,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
