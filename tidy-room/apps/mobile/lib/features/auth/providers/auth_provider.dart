@@ -185,9 +185,36 @@ class AuthProvider extends ChangeNotifier {
       );
 
       if (response.user != null) {
+        _user = response.user;
+        
+        // Fetch user profile to get role
+        try {
+          final profileResponse = await supabase
+              .from('tidy_profiles')
+              .select()
+              .eq('id', response.user!.id)
+              .maybeSingle();
+
+          if (profileResponse != null) {
+            _profile = profileResponse;
+            _userRole = profileResponse['role'] as String? ?? 'parent';
+          } else {
+            // No profile exists yet - assume parent role
+            _userRole = 'parent';
+          }
+        } catch (e) {
+          debugPrint('Error fetching profile during login: $e');
+          _userRole = 'parent'; // Default to parent
+        }
+        
+        _status = AuthStatus.authenticated;
+        notifyListeners();
         return true;
       }
 
+      _errorMessage = 'Login failed';
+      _status = AuthStatus.error;
+      notifyListeners();
       return false;
     } on AuthException catch (e) {
       _errorMessage = e.message;
