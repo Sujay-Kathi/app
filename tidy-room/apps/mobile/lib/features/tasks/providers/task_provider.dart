@@ -30,6 +30,8 @@ class TaskProvider extends ChangeNotifier {
       _error = null;
       notifyListeners();
 
+      debugPrint('TaskProvider: Fetching tasks for child: $childId');
+
       final response = await supabase
           .from('tidy_tasks')
           .select()
@@ -37,9 +39,16 @@ class TaskProvider extends ChangeNotifier {
           .order('created_at', ascending: false);
 
       _tasks = List<Map<String, dynamic>>.from(response);
+      
+      debugPrint('TaskProvider: Found ${_tasks.length} tasks');
+      for (var task in _tasks) {
+        debugPrint('  - ${task['title']} (status: ${task['status']})');
+      }
+      
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      debugPrint('TaskProvider: Error fetching tasks: $e');
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
@@ -95,6 +104,10 @@ class TaskProvider extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
+      debugPrint('TaskProvider: Creating task "$title" for child: $childId');
+      debugPrint('  - Created by: $createdBy');
+      debugPrint('  - Zone: $zone, Points: $points');
+
       await supabase.from('tidy_tasks').insert({
         'child_id': childId,
         'created_by': createdBy,
@@ -110,9 +123,12 @@ class TaskProvider extends ChangeNotifier {
         'requires_verification': requiresVerification,
       });
 
+      debugPrint('TaskProvider: Task created successfully!');
+
       await fetchTasks(childId);
       return true;
     } catch (e) {
+      debugPrint('TaskProvider: Error creating task: $e');
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
@@ -122,15 +138,20 @@ class TaskProvider extends ChangeNotifier {
 
   Future<bool> completeTask(String taskId, String childId, {String? photoUrl}) async {
     try {
+      debugPrint('TaskProvider: Completing task $taskId for child $childId');
+      
       await supabase.from('tidy_tasks').update({
         'status': 'completed',
         'completed_at': DateTime.now().toIso8601String(),
         'verification_photo_url': photoUrl,
       }).eq('id', taskId);
 
+      debugPrint('TaskProvider: Task marked as completed');
+      
       await fetchTasks(childId);
       return true;
     } catch (e) {
+      debugPrint('TaskProvider: Error completing task: $e');
       _error = e.toString();
       notifyListeners();
       return false;
@@ -155,6 +176,40 @@ class TaskProvider extends ChangeNotifier {
       await fetchTasks(childId);
       return true;
     } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateTask({
+    required String taskId,
+    required String childId,
+    String? title,
+    String? description,
+    int? points,
+    String? difficulty,
+    String? zone,
+    String? icon,
+    bool? requiresVerification,
+  }) async {
+    try {
+      final updates = <String, dynamic>{};
+      if (title != null) updates['title'] = title;
+      if (description != null) updates['description'] = description;
+      if (points != null) updates['points'] = points;
+      if (difficulty != null) updates['difficulty'] = difficulty;
+      if (zone != null) updates['zone'] = zone;
+      if (icon != null) updates['icon'] = icon;
+      if (requiresVerification != null) updates['requires_verification'] = requiresVerification;
+      
+      if (updates.isNotEmpty) {
+        await supabase.from('tidy_tasks').update(updates).eq('id', taskId);
+        await fetchTasks(childId);
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error updating task: $e');
       _error = e.toString();
       notifyListeners();
       return false;

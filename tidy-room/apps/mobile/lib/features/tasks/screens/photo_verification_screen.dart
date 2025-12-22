@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../main.dart';
 import '../../child/providers/child_provider.dart';
 import '../providers/task_provider.dart';
+import 'in_app_camera_screen.dart';
 
 class PhotoVerificationScreen extends StatefulWidget {
   final Map<String, dynamic> task;
@@ -34,16 +35,20 @@ class _PhotoVerificationScreenState extends State<PhotoVerificationScreen> {
 
   Future<void> _takePhoto() async {
     try {
-      final XFile? photo = await _picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        imageQuality: 85,
+      // Use in-app camera to prevent app reload
+      final File? photo = await Navigator.push<File>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InAppCameraScreen(
+            title: widget.task['title'] ?? 'Task Verification',
+            subtitle: 'Take a photo to prove you completed the task',
+          ),
+        ),
       );
 
-      if (photo != null) {
+      if (photo != null && mounted) {
         setState(() {
-          _imageFile = File(photo.path);
+          _imageFile = photo;
           _error = null;
         });
       }

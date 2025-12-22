@@ -660,6 +660,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       
       int successCount = 0;
       int failCount = 0;
+
+      debugPrint('AssignTask: Assigning ${_selectedTemplates.length} tasks to child: $_selectedChild');
       
       // Create a task for each selected template
       for (final templateId in _selectedTemplates) {

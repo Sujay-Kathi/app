@@ -42,9 +42,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Consumer3<ChildProvider, ProfileProvider, TaskProvider>(
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppTheme.primary.withOpacity(0.15),
+            Theme.of(context).scaffoldBackgroundColor,
+          ],
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Consumer3<ChildProvider, ProfileProvider, TaskProvider>(
           builder: (context, childProvider, profileProvider, taskProvider, _) {
             final name = childProvider.name;
             final avatar = childProvider.avatarEmoji;
@@ -320,6 +332,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             );
           },
         ),
+      ),
       ),
     );
   }

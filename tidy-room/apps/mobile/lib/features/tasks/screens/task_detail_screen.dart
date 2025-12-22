@@ -118,6 +118,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> with TickerProvider
     // Refresh task data
     _loadTask();
     
+    // Refresh child data to update points in UI
+    final childId = context.read<ChildProvider>().childId;
+    if (childId != null) {
+      context.read<ChildProvider>().fetchChild(childId);
+    }
+    
     // Navigate back after celebration
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {

@@ -45,6 +45,9 @@ void main() async {
 // Supabase client instance
 final supabase = Supabase.instance.client;
 
+// Global route observer for route-aware widgets
+final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
+
 class TidyRoomApp extends StatelessWidget {
   const TidyRoomApp({super.key});
 

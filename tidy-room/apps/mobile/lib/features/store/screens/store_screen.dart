@@ -61,10 +61,22 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppTheme.primary.withOpacity(0.1),
+            Theme.of(context).scaffoldBackgroundColor,
+          ],
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Column(
+            children: [
             // Header
             Padding(
               padding: const EdgeInsets.all(16),
@@ -178,7 +190,8 @@ class _StoreScreenState extends State<StoreScreen> with SingleTickerProviderStat
                       },
                     ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

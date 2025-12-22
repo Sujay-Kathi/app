@@ -150,6 +150,8 @@ class _ChildLoginScreenState extends State<ChildLoginScreen> {
 
       if (verifiedChild != null) {
         // Set child in provider
+        debugPrint('Child login successful! Child ID: $childId');
+        debugPrint('Child data: $verifiedChild');
         context.read<ChildProvider>().setChild(childId, verifiedChild);
         
         // Navigate to room

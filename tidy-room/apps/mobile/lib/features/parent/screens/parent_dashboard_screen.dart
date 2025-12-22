@@ -17,6 +17,7 @@ class ParentDashboardScreen extends StatefulWidget {
 class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   List<Map<String, dynamic>> _children = [];
   List<Map<String, dynamic>> _pendingTasks = [];
+  List<Map<String, dynamic>> _assignedTasks = []; // All assigned tasks (pending status)
   List<Map<String, dynamic>> _recentActivity = [];
   bool _isLoading = true;
   int _totalTasksToday = 0;
@@ -26,6 +27,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  // Navigate to a screen and refresh when returning
+  Future<void> _navigateAndRefresh(String path) async {
+    await context.push(path);
+    // Refresh data when returning from the screen
+    if (mounted) {
+      debugPrint('ParentDashboard: Returned from $path, refreshing...');
+      _loadData();
+    }
   }
 
   Future<void> _loadData() async {
@@ -87,6 +98,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               .limit(5);
 
           _recentActivity = List<Map<String, dynamic>>.from(activityResponse);
+
+          // Fetch assigned tasks (pending status - can be edited/deleted)
+          final assignedResponse = await supabase
+              .from('tidy_tasks')
+              .select('*, child:tidy_children(name, avatar_emoji)')
+              .inFilter('child_id', childIds)
+              .eq('status', 'pending')
+              .order('created_at', ascending: false);
+
+          _assignedTasks = List<Map<String, dynamic>>.from(assignedResponse);
         }
       }
 
@@ -293,7 +314,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         icon: Icons.add_task,
                         label: 'Assign Task',
                         color: AppTheme.primary,
-                        onTap: () => context.push('/parent/assign-task'),
+                        onTap: () => _navigateAndRefresh('/parent/assign-task'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -320,6 +341,83 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
                 const SizedBox(height: 24),
 
+                // Manage Tasks Section
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Manage Tasks',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (_assignedTasks.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${_assignedTasks.length}',
+                              style: const TextStyle(
+                                color: AppTheme.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    TextButton(
+                      onPressed: () => _navigateAndRefresh('/parent/assign-task'),
+                      child: const Text('+ New Task'),
+                    ),
+                  ],
+                ).animate().fadeIn(delay: 650.ms),
+
+                const SizedBox(height: 12),
+
+                if (_assignedTasks.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Theme.of(context).dividerColor),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text('📋', style: TextStyle(fontSize: 40)),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No pending tasks assigned',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Assign tasks to your children',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ).animate().fadeIn(delay: 700.ms)
+                else
+                  ...List.generate(_assignedTasks.length, (index) {
+                    final task = _assignedTasks[index];
+                    return _buildManageTaskCard(task, index)
+                        .animate()
+                        .fadeIn(delay: Duration(milliseconds: 700 + (index * 50)))
+                        .slideX(begin: 0.05);
+                  }),
+
+                const SizedBox(height: 24),
+
                 // Recent Activity
                 const Text(
                   'Recent Activity',
@@ -327,7 +425,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
-                ).animate().fadeIn(delay: 700.ms),
+                ).animate().fadeIn(delay: 800.ms),
 
                 const SizedBox(height: 12),
 
@@ -341,7 +439,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     child: const Center(
                       child: Text('No recent activity'),
                     ),
-                  ).animate().fadeIn(delay: 800.ms)
+                  ).animate().fadeIn(delay: 900.ms)
                 else
                   ...List.generate(_recentActivity.length, (index) {
                     final activity = _recentActivity[index];
@@ -351,7 +449,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       title: '${child?['name'] ?? 'Child'} completed "${activity['title']}"',
                       time: _formatTime(activity['completed_at']),
                       points: activity['points'],
-                    ).animate().fadeIn(delay: Duration(milliseconds: 800 + (index * 50)));
+                    ).animate().fadeIn(delay: Duration(milliseconds: 900 + (index * 50)));
                   }),
 
                 const SizedBox(height: 40),
@@ -389,6 +487,390 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
     if (diff.inHours < 24) return '${diff.inHours} hours ago';
     return '${diff.inDays} days ago';
+  }
+
+  Widget _buildManageTaskCard(Map<String, dynamic> task, int index) {
+    final child = task['child'];
+    final childName = child?['name'] ?? 'Child';
+    final childEmoji = child?['avatar_emoji'] ?? '👦';
+    final taskIcon = task['icon'] ?? '✨';
+    final title = task['title'] ?? 'Task';
+    final points = task['points'] ?? 0;
+    final zone = task['zone'] ?? 'general';
+    final difficulty = task['difficulty'] ?? 'medium';
+
+    return Dismissible(
+      key: Key(task['id']),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: AppTheme.error,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.centerRight,
+        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
+      ),
+      confirmDismiss: (direction) => _confirmDeleteTask(task),
+      onDismissed: (direction) => _deleteTask(task),
+      child: GestureDetector(
+        onTap: () => _showEditTaskDialog(task),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Theme.of(context).dividerColor),
+          ),
+          child: Row(
+            children: [
+              // Task icon
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: AppTheme.getZoneColor(zone).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: Text(taskIcon, style: const TextStyle(fontSize: 24)),
+                ),
+              ),
+              const SizedBox(width: 14),
+              // Task info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(childEmoji, style: const TextStyle(fontSize: 14)),
+                        const SizedBox(width: 4),
+                        Text(
+                          childName,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppTheme.getDifficultyColor(difficulty).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            difficulty.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.getDifficultyColor(difficulty),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Points + actions
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.star, size: 14, color: AppTheme.accent),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$points',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 16, color: Colors.grey.shade400),
+                      const SizedBox(width: 6),
+                      Icon(Icons.chevron_left, size: 14, color: Colors.grey.shade400),
+                      Text(
+                        'Swipe',
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _confirmDeleteTask(Map<String, dynamic> task) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.delete_outline, color: AppTheme.error),
+            ),
+            const SizedBox(width: 12),
+            const Text('Delete Task?'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete "${task['title']}"?\n\nThis action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  Future<void> _deleteTask(Map<String, dynamic> task) async {
+    try {
+      await supabase.from('tidy_tasks').delete().eq('id', task['id']);
+      
+      setState(() {
+        _assignedTasks.removeWhere((t) => t['id'] == task['id']);
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✓ "${task['title']}" deleted'),
+            backgroundColor: AppTheme.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting task: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showEditTaskDialog(Map<String, dynamic> task) {
+    final titleController = TextEditingController(text: task['title'] ?? '');
+    final pointsController = TextEditingController(text: '${task['points'] ?? 20}');
+    String selectedDifficulty = task['difficulty'] ?? 'medium';
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.edit, color: AppTheme.primary),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Edit Task',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                
+                // Title field
+                TextField(
+                  controller: titleController,
+                  decoration: InputDecoration(
+                    labelText: 'Task Title',
+                    prefixIcon: Text(task['icon'] ?? '✨', style: const TextStyle(fontSize: 20)),
+                    prefixIconConstraints: const BoxConstraints(minWidth: 50),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Points field
+                TextField(
+                  controller: pointsController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Points',
+                    prefixIcon: const Icon(Icons.star, color: AppTheme.accent),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Difficulty
+                const Text('Difficulty', style: TextStyle(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                Row(
+                  children: ['easy', 'medium', 'hard'].map((diff) {
+                    final isSelected = selectedDifficulty == diff;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => setModalState(() => selectedDifficulty = diff),
+                        child: Container(
+                          margin: EdgeInsets.only(right: diff != 'hard' ? 8 : 0),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isSelected 
+                                ? AppTheme.getDifficultyColor(diff)
+                                : AppTheme.getDifficultyColor(diff).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              diff.toUpperCase(),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: isSelected 
+                                    ? Colors.white 
+                                    : AppTheme.getDifficultyColor(diff),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 24),
+                
+                // Save button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      final newTitle = titleController.text.trim();
+                      final newPoints = int.tryParse(pointsController.text) ?? task['points'];
+                      
+                      if (newTitle.isEmpty) return;
+                      
+                      try {
+                        await supabase.from('tidy_tasks').update({
+                          'title': newTitle,
+                          'points': newPoints,
+                          'difficulty': selectedDifficulty,
+                        }).eq('id', task['id']);
+                        
+                        // Update local state
+                        final index = _assignedTasks.indexWhere((t) => t['id'] == task['id']);
+                        if (index != -1) {
+                          setState(() {
+                            _assignedTasks[index]['title'] = newTitle;
+                            _assignedTasks[index]['points'] = newPoints;
+                            _assignedTasks[index]['difficulty'] = selectedDifficulty;
+                          });
+                        }
+                        
+                        if (mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('✓ Task updated!'),
+                              backgroundColor: AppTheme.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: AppTheme.error,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Save Changes',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showPendingTasks() {
